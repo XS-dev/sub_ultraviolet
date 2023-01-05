@@ -29,6 +29,7 @@ class Spectrometer:
     def __get_spectral_intensity(self, filepath):
         filepath = glob.glob(filepath)
         f_length = len(filepath)
+        self.matrix_a_length = f_length
         df = pd.DataFrame(pd.read_table(filepath[f_length - 1], sep=',', encoding='gbk', header=1)).values[:, 1]
         for tmp in range(f_length - 2, -1, -1):
             df = np.vstack(
