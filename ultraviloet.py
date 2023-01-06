@@ -6,7 +6,7 @@ import pandas as pd
 import u_tool
 
 
-class Spectrometer:
+class ultraviloet:
 
     def __init__(self, wavelength):
         self.wavelength = wavelength
@@ -15,6 +15,7 @@ class Spectrometer:
     def _get_matrix_a(self, filepath):
         self.matrix_a = self.__get_spectral_intensity(filepath)
         self.matrix_a = self.__absorption2transmittance(self.matrix_a)
+
         return self.matrix_a
 
     def _get_matrix_x(self, filepath):
@@ -40,6 +41,42 @@ class Spectrometer:
     def __absorption2transmittance(self, matrix):
         self.matrix = 1 / np.power(10, matrix)
         return self.matrix
+
+    def _panning(self, init):
+        # 先把初始峰拿到
+        self.matrix_panning_right = self.matrix_a
+        matrix_panning_right_tmp = self.matrix_panning_right
+        self.matrix_panning_right = self.matrix_panning_right[np.newaxis, :]
+        matrix_panning_right_tmp = matrix_panning_right_tmp[np.newaxis, :]
+        # 先往右平移
+        for tmp in range(0, 280 - init):
+            # matrix_panning_right_tmp[0,0] * 2 - matrix_panning_right_tmp[0,1]
+            matrix_panning_right_tmp = np.hstack((matrix_panning_right_tmp[0,0] * 2 - matrix_panning_right_tmp[0,1],
+                                                  matrix_panning_right_tmp[0,0:300]))
+            matrix_panning_right_tmp = matrix_panning_right_tmp[np.newaxis, :]
+            self.matrix_panning_right = np.vstack((self.matrix_panning_right, matrix_panning_right_tmp[0,:]))
+
+        matrix_panning_left_tmp = self.matrix_a
+        matrix_panning_left_tmp = matrix_panning_left_tmp[np.newaxis, :]
+        self.matrix_panning_left = self.matrix_a
+        self.matrix_panning_left = self.matrix_panning_left[np.newaxis, :]
+
+        #再往左侧移动
+        for tmp in range (init-250,0,-1):
+            matrix_panning_left_tmp = np.hstack((matrix_panning_left_tmp[0, 1:301],
+                                                 matrix_panning_left_tmp[0, 299] * 2 - matrix_panning_left_tmp[0, 300],))
+            matrix_panning_left_tmp = matrix_panning_left_tmp[np.newaxis, :]
+            self.matrix_panning_left = np.vstack((matrix_panning_left_tmp[0, :],self.matrix_panning_left))
+
+        self.matrix_panning = self.matrix_panning_left
+        self.matrix_panning = np.vstack((self.matrix_panning, self.matrix_panning_right[1:,]))
+        f_length = len(self.matrix_panning)
+        self.matrix_a_length = f_length
+        self.matrix_panning = self.matrix_panning[:,0:151]
+
+
+
+
 
     def _restoration(self, algorithm):
         match algorithm:
@@ -93,13 +130,13 @@ class Spectrometer:
             x2 = mu_1 * (G.T.dot((g - y_1 / mu_1))) + mu_2 * ((A.T).dot(b - y_2 / mu_2))
             x = np.linalg.inv(x1).dot(x2)
             j1 = np.linalg.norm(G.dot(x) - g)
-            j2 = np.linalg.norm(A.dot(x)-b)
-            if ( j1 + j2) < epsilon:
+            j2 = np.linalg.norm(A.dot(x) - b)
+            if (j1 + j2) < epsilon:
                 print("迭代次数")
                 print(times)
                 print("\r\n")
                 self.xil = x
-                self.matrix_x = np.vstack((self.matrix_x,x.T))
+                self.matrix_x = np.vstack((self.matrix_x, x.T))
                 return x
             else:
                 # 迭代y1
